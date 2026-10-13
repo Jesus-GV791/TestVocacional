@@ -1,3 +1,4 @@
-flask==2.3.3
+Flask==2.3.3
+Flask-SQLAlchemy
 gunicorn
 mysql-connector-python==8.1.0
