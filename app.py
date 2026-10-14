@@ -12,17 +12,33 @@ app.secret_key = "clave-secreta-test-vocacional"
 
 
 # =========================================================
-# CONFIGURACIÓN MYSQL
+# CONFIGURACIÓN MYSQL - AIVEN
 # =========================================================
 
-app.config["SQLALCHEMY_DATABASE_URI"] = (
-    "mysql+pymysql://root:@localhost/test_vocacional"
+import os
+from pathlib import Path
+from sqlalchemy import URL
+
+ca_path = str(Path(__file__).resolve().parent / "ca.pem")
+
+app.config["SQLALCHEMY_DATABASE_URI"] = URL.create(
+    drivername="mysql+pymysql",
+    username=os.environ["DB_USER"],
+    password=os.environ["DB_PASSWORD"],
+    host=os.environ["DB_HOST"],
+    port=int(os.environ["DB_PORT"]),
+    database=os.environ["DB_NAME"],
 )
+
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "connect_args": {
+        "ssl": {"ca": ca_path}
+    }
+}
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
-
 
 # =========================================================
 # TEMAS POR ÁREA  (solo colores para resultados)
