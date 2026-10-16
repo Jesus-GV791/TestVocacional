@@ -1718,6 +1718,108 @@ def pagina_base(titulo, contenido):
     """
 
 
+@app.route("/dashboard")
+def dashboard():
+    from sqlalchemy import func
+
+    # Total de estudiantes que realizaron el test
+    total_estudiantes = (
+        db.session.query(func.count(Usuario.id)).scalar() or 0
+    )
+
+    # Obtener el área con mayor porcentaje de cada estudiante.
+    # Si hay empate, se conserva una de las áreas con mayor puntuación.
+    mejores_resultados = (
+        db.session.query(
+            Resultado.usuario_id,
+            func.max(Resultado.porcentaje).label("mejor_porcentaje")
+        )
+        .group_by(Resultado.usuario_id)
+        .subquery()
+    )
+
+    # Contar estudiantes cuya afinidad máxima corresponde a cada área.
+    estadisticas = (
+        db.session.query(
+            AreaVocacional.nombre,
+            func.count(func.distinct(Resultado.usuario_id)).label("cantidad"),
+            func.avg(Resultado.porcentaje).label("promedio")
+        )
+        .join(Resultado, Resultado.area_id == AreaVocacional.id)
+        .join(
+            mejores_resultados,
+            (Resultado.usuario_id == mejores_resultados.c.usuario_id)
+            & (Resultado.porcentaje == mejores_resultados.c.mejor_porcentaje)
+        )
+        .group_by(AreaVocacional.id, AreaVocacional.nombre)
+        .order_by(
+            func.count(func.distinct(Resultado.usuario_id)).desc()
+        )
+        .all()
+    )
+
+    filas = ""
+
+    for nombre, cantidad, promedio in estadisticas:
+        porcentaje_estudiantes = (
+            cantidad / total_estudiantes * 100
+            if total_estudiantes else 0
+        )
+
+        filas += f"""
+        <tr>
+            <td>{escape(nombre)}</td>
+            <td>{cantidad}</td>
+            <td>{porcentaje_estudiantes:.1f}%</td>
+            <td>{float(promedio or 0):.1f}%</td>
+        </tr>
+        """
+
+    if not filas:
+        filas = """
+        <tr>
+            <td colspan="4">Todavía no hay resultados.</td>
+        </tr>
+        """
+
+    contenido = f"""
+    <main class="app-container">
+        <section class="card-custom">
+            <h1>Estadísticas del Test Vocacional</h1>
+
+            <div class="result-card destacado">
+                <h2>Total de estudiantes: {total_estudiantes}</h2>
+            </div>
+
+            <h2>Estudiantes por área vocacional principal</h2>
+
+            <div style="overflow-x:auto">
+                <table style="width:100%;text-align:left">
+                    <thead>
+                        <tr>
+                            <th>Área vocacional</th>
+                            <th>Estudiantes</th>
+                            <th>% de estudiantes</th>
+                            <th>Afinidad promedio</th>
+                        </tr>
+                    </thead>
+                    <tbody>{filas}</tbody>
+                </table>
+            </div>
+
+            <p style="color:var(--muted);font-size:.9rem">
+                Cada estudiante se cuenta en el área donde obtuvo
+                su mayor porcentaje de afinidad. Los empates pueden
+                aparecer en más de un área.
+            </p>
+
+            <p><a href="/">Volver al test</a></p>
+        </section>
+    </main>
+    """
+
+    return pagina_base("Estadísticas del Test", contenido)
+
 # =========================================================
 # RUTA PRINCIPAL
 # =========================================================
@@ -1815,6 +1917,16 @@ def index():
                 </button>
 
             </form>
+		<!-- BOTÓN DE ESTADÍSTICAS -->
+            <div style="text-align:center; margin-top:18px;">
+                <a href="/dashboard"
+                   style="display:block; padding:14px 20px;
+                          background:#2563eb; color:white;
+                          text-decoration:none; border-radius:12px;
+                          font-weight:600;">
+                     Ver estadísticas del test
+                </a>
+            </div>
 
         </section>
 
